@@ -1,0 +1,7 @@
+{
+    "addr": ":2412",
+	"cert":"keys/demo.pem",
+    "key":"keys/demo.key",
+    "cacert":"data/cacert.pem",
+	"privKeyDir":"./keys"
+}

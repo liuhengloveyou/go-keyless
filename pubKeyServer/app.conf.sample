@@ -1,0 +1,10 @@
+{
+    "addr": ":10000",
+    "cert": "data/pubserver.pem",
+    "key": "data/pubserver.key",
+    "whiteip": "127.0.0.1 127.0.0.2",
+    
+    "hosts":{
+        "www.demo.com": "./certs/demo.pem"
+    }
+}

@@ -1,0 +1,60 @@
+#!/bin/bash
+
+export GOMAXPROCS=8
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+keylessProxy=${keylessProxy-/opt/vfcc2/keylessProxy/keylessProxy}
+prog=keylessProxy
+pidfile=${PIDFILE-/opt/vfcc2/keylessProxy/keylessProxy.pid}
+RETVAL=0
+STOP_TIMEOUT=${STOP_TIMEOUT-10}
+DAEMON_COREFILE_LIMIT="unlimited"
+OPTIONS="-stderrthreshold 5 -log_dir /cache/logs/keylessProxy"
+
+start() {
+    echo -n $"Starting $prog: "
+    mkdir -p /cache/logs/keylessProxy
+    if ! status -p ${pidfile} $diskmgrd >&/dev/null; then
+        cd $(dirname $keylessProxy) && nohup $keylessProxy $OPTIONS &
+        [ "$?" -eq 0 ] && success $"$base startup" || failure $"$base startup"
+        RETVAL=$?
+        echo
+        return $RETVAL
+    else
+        echo
+        return 0
+    fi
+}
+
+stop() {
+    echo -n $"Stopping $prog: "
+    killproc -p ${pidfile}
+    RETVAL=$?
+    echo
+    [ $RETVAL = 0 ] && rm -f ${lockfile} ${pidfile}
+    return $RETVAL;
+}
+
+# See how we were called.
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+	   stop
+       ;;
+    status)
+        status -p ${pidfile} $keylessProxy
+        RETVAL=$?
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    *)
+        echo $"Usage: $prog {start|stop|restart|status}"
+        RETVAL=2
+esac
+exit $RETVAL
