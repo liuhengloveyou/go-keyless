@@ -1,6 +1,6 @@
 # keylessProxy
 
-keyless ssl 代理
+最新中文文档：[go-keyless](https://www.sixianed.com/2017/10/28/cj9atvkyb0000wdye7plmgvbb.html)
 
 ## 测试证书生成(基于OpenSSL自建CA颁发SSL证书)
 
