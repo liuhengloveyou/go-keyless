@@ -25,25 +25,32 @@ type HostConfig struct {
 }
 
 type Config struct {
-	Addr             string   `json:"addr"`
-	Resolvers        []string `json:"resolvers"`
-	ProxyCert        string   `json:"proxyCert"`
-	ProxyKey         string   `json:"proxyKey"`
-	ProxyCA          string   `json:"proxyCA"`
-	TargetAddr       string   `json:"targetAddr"`
-	PubKeyServer     []string `json:"pubKeyServer"`
-	SessionTicketKey string   `json:"sessionTicketKey"`
+	Addr         string   `json:"addr"`
+	TargetAddr   string   `json:"target"`
+	PubKeyServer []string `json:"pubKeyServer"`
+	Resolvers    []string `json:"resolvers"`
 
+	Cert             string `json:"cert"`
+	Key              string `json:"key"`
+	CA               string `json:"ca"`
+	SessionTicketKey string `json:"sessionTicketKey"`
+
+	// 只有配置的域名才能连接成功
 	Hosts map[string]*HostConfig `json:"hosts"`
 }
 
 var (
-	confile = flag.String("conf", "./app.conf", "配置文件路径.")
+	confile = flag.String("conf", "./app.conf", "配置文件路径")
 	conf    Config
-	certs   map[string]*tls.Certificate
 
+	// 所有已配置的域名
+	certs map[string]*tls.Certificate
+
+	// 用来从keyServer取私钥的客户端
 	keylessClient *client.Client
-	conn          []*tls.Conn
+
+	// 用来从keyServer取证书的客户端
+	pubKeyClient []*tls.Conn
 )
 
 func init() {
@@ -53,30 +60,34 @@ func init() {
 	}
 
 	certs = make(map[string]*tls.Certificate, len(conf.Hosts))
-	conn = make([]*tls.Conn, len(conf.PubKeyServer))
-}
-
-func main() {
-	runtime.GOMAXPROCS(16)
-	flag.Parse()
+	pubKeyClient = make([]*tls.Conn, len(conf.PubKeyServer))
 
 	gob.Register(rsa.PublicKey{})
 
+	ncpu := 8
+	if runtime.NumCPU() > ncpu {
+		ncpu = runtime.NumCPU()
+	}
+	runtime.GOMAXPROCS(ncpu)
+}
+
+func main() {
+	flag.Parse()
+
 	var e error
 
-	if keylessClient, e = client.NewClientFromFile(conf.ProxyCert, conf.ProxyKey, conf.ProxyCA); e != nil {
+	if keylessClient, e = client.NewClientFromFile(conf.Cert, conf.Key, conf.CA); e != nil {
 		panic(e)
 	}
 
 	keylessClient.Dialer.Timeout = 1 * time.Second
 	keylessClient.Resolvers = conf.Resolvers
-	keylessClient.Config.ClientSessionCache = NewGlobalSession()
+	//keylessClient.Config.ClientSessionCache = NewGlobalSession()
 
 	serverConfig := &tls.Config{
 		InsecureSkipVerify:     true,
 		Certificates:           nil,
 		GetCertificate:         getCertificate,
-		ServerName:             "keyless.vfcc.com",
 		SessionTicketsDisabled: false,
 		SessionTicketKey:       sha256.Sum256([]byte(conf.SessionTicketKey)),
 	}
@@ -100,27 +111,27 @@ func main() {
 }
 
 func handle(sconn net.Conn) {
-	defer sconn.Close()
-
 	addrs := strings.Fields(conf.TargetAddr)
 	dconn, e := net.Dial(addrs[0], addrs[1])
 	if e != nil {
-		fmt.Println("dial: ", conf.TargetAddr, e)
+		log.Println("dial: ", conf.TargetAddr, e)
 		return
 	}
-	defer dconn.Close()
 
+	defer dconn.Close()
+	defer sconn.Close()
 	ExitChan := make(chan bool, 1)
+
 	go func(sconn net.Conn, dconn net.Conn, Exit chan bool) {
 		var b [65535]byte
 		for {
 			n, e := sconn.Read(b[0:])
 			if e != nil {
-				fmt.Println("read sconn: ", e)
+				log.Println("read client: ", e)
 				break
 			}
 			if _, e = dconn.Write(b[:n]); e != nil {
-				fmt.Println("write dconn: ", e)
+				fmt.Println("write server: ", e)
 				break
 			}
 		}
@@ -133,12 +144,12 @@ func handle(sconn net.Conn) {
 		for {
 			n, e := dconn.Read(b[0:])
 			if e != nil {
-				fmt.Println("read dconn: ", e)
+				fmt.Println("read server: ", e)
 				break
 			}
 
 			if _, e = sconn.Write(b[:n]); e != nil {
-				fmt.Println("write sconn: ", e)
+				fmt.Println("write client: ", e)
 				break
 			}
 		}
@@ -147,16 +158,16 @@ func handle(sconn net.Conn) {
 	}(sconn, dconn, ExitChan)
 
 	<-ExitChan
-	fmt.Println("requst over: ", sconn.RemoteAddr().String())
+	fmt.Println("over: ", sconn.RemoteAddr().String())
 
 	return
 }
 
 func getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	fmt.Printf("GetCertificate: %#v\n", clientHello) // SNI
+	fmt.Printf("GetCertificate: %#v\n", clientHello)
 
 	if clientHello.ServerName == "" {
-		return nil, fmt.Errorf("client must have SNI.")
+		return nil, fmt.Errorf("MUST support SNI.")
 	}
 
 	if _, ok := conf.Hosts[clientHello.ServerName]; false == ok {
@@ -165,11 +176,11 @@ func getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) 
 	}
 
 	if cert, ok := certs[clientHello.ServerName]; ok {
-		fmt.Println("get cert from local: ", clientHello.ServerName)
+		fmt.Println("get cert from local cache: ", clientHello.ServerName)
 		return cert, nil
 	}
 
-	fmt.Println("get cert from server: ", clientHello.ServerName)
+	fmt.Println("get cert from keyServer: ", clientHello.ServerName)
 	cert, e := getCertificateFromServer(conf.Hosts[clientHello.ServerName].KeyServerAddr, clientHello)
 	if e != nil {
 		fmt.Println("get cert from server ERR: ", e)
@@ -182,14 +193,16 @@ func getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) 
 }
 
 func getCertificateFromServer(priserver string, clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	var e error
-	var i int
-	var cert tls.Certificate
+	var (
+		e    error
+		i    int
+		cert tls.Certificate
+	)
 
 BEGIN:
-	for ; i < len(conn); i++ {
-		if conn[i] == nil {
-			if conn[i], e = tls.Dial("tcp", conf.PubKeyServer[i], &tls.Config{InsecureSkipVerify: true}); e == nil {
+	for ; i < len(pubKeyClient); i++ {
+		if pubKeyClient[i] == nil {
+			if pubKeyClient[i], e = tls.Dial("tcp", conf.PubKeyServer[i], &tls.Config{InsecureSkipVerify: true}); e == nil {
 				break
 			}
 		} else {
@@ -201,17 +214,17 @@ BEGIN:
 		return nil, e
 	}
 
-	if _, e = fmt.Fprintf(conn[i], "%s\n", clientHello.ServerName); e != nil {
+	if _, e = fmt.Fprintf(pubKeyClient[i], "%s\n", clientHello.ServerName); e != nil {
 		fmt.Println("write ERR: ", i, e)
-		conn[i].Close()
-		conn[i] = nil
+		pubKeyClient[i].Close()
+		pubKeyClient[i] = nil
 		goto BEGIN
 	}
 
-	if e := gob.NewDecoder(conn[i]).Decode(&cert); e != nil && e != io.EOF {
+	if e := gob.NewDecoder(pubKeyClient[i]).Decode(&cert); e != nil && e != io.EOF {
 		fmt.Println("read ERR: ", i, e)
-		conn[i].Close()
-		conn[i] = nil
+		pubKeyClient[i].Close()
+		pubKeyClient[i] = nil
 		goto BEGIN
 	}
 

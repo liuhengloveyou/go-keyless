@@ -1,18 +1,19 @@
 {
     "addr": ":1443",
-    "targetAddr": "tcp 127.0.0.1:8080",
+    "target": "tcp 127.0.0.1:8080",
     "resolvers": ["127.0.0.2:10001", "127.0.0.2:10002"],
-    "pubKeyServer": ["127.0.0.1:10001", "127.0.0.1:10000"],
-    "sessionTicketKey": "When you forgive, you love. And When you love, god's light shines on you",
+    "pubKeyServer": ["127.0.0.1:2422"],
+
+    "cert": "./certs/kugou.crt",
+    "Key": "./certs/kugou.key",
+    "CA": "./certs/ss.pem",
     
-    "proxyCert": "data/client.pem",
-    "proxyKey": "data/client.key",
-    "proxyCA": "data/cacert.pem",  
+    "sessionTicketKey": "When you forgive, you love. And When you love, god's light shines on you",
 
     "hosts":{
     "www.demo.com":{
-        "keyServerAddr": "www.keyless.vfcc.com.cn:2412",
-        "keyServerCA": "data/cacert.pem"
+        "keyServerAddr": "keyserver.keyless.com:2412",
+        "keyServerCA": "./certs/ss.pem"
         }
     }
 }

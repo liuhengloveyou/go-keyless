@@ -1,0 +1,14 @@
+{
+    "key_addr": ":2412",
+    "cert_addr": ":2422",    
+   	"cert_dir":"./certs",
+    "cert":"certs/kugou.crt",
+    "key":"certs/kugou.key",
+    "ca":"certs/ss.crt"
+
+    "whiteip": "127.0.0.1 127.0.0.2",
+    
+    "hosts":{
+        "www.demo.com": "./certs/demo.pem"
+    }
+}
