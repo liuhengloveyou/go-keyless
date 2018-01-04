@@ -25,7 +25,7 @@ func publicKeyServer() {
 			panic(e)
 		}
 		certs[k] = cert
-		log.Println("loadTLSCertificate: %s\n", k)
+		log.Println("loadTLSCertificate: ", k)
 	}
 
 	// 启动tls监听
@@ -80,7 +80,7 @@ func handle(conn net.Conn) {
 			break
 		}
 
-		fmt.Println("get cert: ", string(line), cert)
+		fmt.Println("get cert: ", string(line))
 	}
 
 	conn.Close()

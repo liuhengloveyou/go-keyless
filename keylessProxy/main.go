@@ -20,8 +20,8 @@ import (
 )
 
 type HostConfig struct {
-	KeyServerAddr string `json:"keyServerAddr"`
-	keyServerCA   string `json: "keyServerCA"`
+	PriKeyServer string `json:"priKeyServer"`
+	KeyServerCA  string `json: "keyServerCA"`
 }
 
 type Config struct {
@@ -76,12 +76,15 @@ func main() {
 
 	var e error
 
+	fmt.Println(">>>", conf)
+
 	if keylessClient, e = client.NewClientFromFile(conf.Cert, conf.Key, conf.CA); e != nil {
 		panic(e)
 	}
 
 	keylessClient.Dialer.Timeout = 1 * time.Second
-	keylessClient.Resolvers = conf.Resolvers
+	//keylessClient.Resolvers = conf.Resolvers
+	keylessClient.Config.InsecureSkipVerify = true
 	//keylessClient.Config.ClientSessionCache = NewGlobalSession()
 
 	serverConfig := &tls.Config{
@@ -164,7 +167,7 @@ func handle(sconn net.Conn) {
 }
 
 func getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	fmt.Printf("GetCertificate: %#v\n", clientHello)
+	fmt.Printf("GetCertificate: %#v\n", clientHello.ServerName)
 
 	if clientHello.ServerName == "" {
 		return nil, fmt.Errorf("MUST support SNI.")
@@ -181,7 +184,7 @@ func getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) 
 	}
 
 	fmt.Println("get cert from keyServer: ", clientHello.ServerName)
-	cert, e := getCertificateFromServer(conf.Hosts[clientHello.ServerName].KeyServerAddr, clientHello)
+	cert, e := getCertificateFromServer(conf.Hosts[clientHello.ServerName].PriKeyServer, clientHello)
 	if e != nil {
 		fmt.Println("get cert from server ERR: ", e)
 		return nil, e
