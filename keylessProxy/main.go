@@ -76,7 +76,7 @@ func main() {
 
 	var e error
 
-	fmt.Println(">>>", conf)
+	fmt.Println("config>>>", conf)
 
 	if keylessClient, e = client.NewClientFromFile(conf.Cert, conf.Key, conf.CA); e != nil {
 		panic(e)
@@ -84,7 +84,7 @@ func main() {
 
 	keylessClient.Dialer.Timeout = 1 * time.Second
 	//keylessClient.Resolvers = conf.Resolvers
-	keylessClient.Config.InsecureSkipVerify = true
+	//keylessClient.Config.InsecureSkipVerify = true
 	//keylessClient.Config.ClientSessionCache = NewGlobalSession()
 
 	serverConfig := &tls.Config{
@@ -93,6 +93,7 @@ func main() {
 		GetCertificate:         getCertificate,
 		SessionTicketsDisabled: false,
 		SessionTicketKey:       sha256.Sum256([]byte(conf.SessionTicketKey)),
+		ServerSessionCache:     NewGlobalSession(),
 	}
 
 	l, e := tls.Listen("tcp", conf.Addr, serverConfig)
@@ -167,7 +168,7 @@ func handle(sconn net.Conn) {
 }
 
 func getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	fmt.Printf("GetCertificate: %#v\n", clientHello.ServerName)
+	fmt.Printf("GetCertificate: %#v\n", clientHello)
 
 	if clientHello.ServerName == "" {
 		return nil, fmt.Errorf("MUST support SNI.")

@@ -15,12 +15,20 @@ func main() {
 		DisableCompression: true,
 	}}
 
-	resp, err := client.Get("https://www.demo.com:1443/lua")
+	resp, err := client.Get("https://test.kugou.com:1443/demo")
 	if err != nil {
 		panic(err)
 	}
-
 	body, _ := ioutil.ReadAll(resp.Body)
 	fmt.Println(string(body))
 	fmt.Println(resp.Status)
+
+	resp, err = client.Get("https://test.kugou.com:1443/demo")
+	if err != nil {
+		panic(err)
+	}
+	body, _ = ioutil.ReadAll(resp.Body)
+	fmt.Println(string(body))
+	fmt.Println(resp.Status)
+
 }
